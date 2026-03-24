@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fortress HK — TV Price Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #d62828 0%, #9b1b1b 100%);
+      color: #fff;
+      padding: 28px 32px 24px;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: .5px; }
+    header p  { font-size: .9rem; opacity: .85; margin-top: 4px; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 32px;
+      background: #fff;
+      border-bottom: 1px solid #e2e6ea;
+      flex-wrap: wrap;
+    }
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: .9rem;
+      outline: none;
+    }
+    .toolbar input[type="text"]:focus { border-color: #d62828; box-shadow: 0 0 0 3px rgba(214,40,40,.15); }
+
+    .toolbar label { font-size: .85rem; color: #555; white-space: nowrap; }
+    .toolbar select {
+      padding: 8px 10px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: .85rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .toolbar select:focus { border-color: #d62828; }
+
+    #stats {
+      padding: 12px 32px;
+      font-size: .82rem;
+      color: #666;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: 0 32px 40px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    thead th {
+      background: #2b2d42;
+      color: #edf2f4;
+      padding: 13px 16px;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    thead th:hover { background: #3a3c55; }
+    thead th .sort-icon { margin-left: 4px; opacity: .5; font-size: .75rem; }
+    thead th.asc  .sort-icon::after { content: "▲"; opacity: 1; }
+    thead th.desc .sort-icon::after { content: "▼"; opacity: 1; }
+    thead th:not(.asc):not(.desc) .sort-icon::after { content: "⇅"; }
+
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background .12s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fef6f6; }
+
+    td { padding: 12px 16px; vertical-align: middle; }
+
+    td.date    { color: #888; font-size: .8rem; white-space: nowrap; }
+    td.name    { font-weight: 500; max-width: 340px; }
+    td.name a  { color: #1a1a2e; text-decoration: none; }
+    td.name a:hover { color: #d62828; text-decoration: underline; }
+
+    td.price   { font-weight: 700; color: #d62828; white-space: nowrap; }
+    td.was     { color: #aaa; text-decoration: line-through; font-size: .82rem; white-space: nowrap; }
+
+    .badge-sale {
+      display: inline-block;
+      background: #d62828;
+      color: #fff;
+      font-size: .68rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    #empty {
+      display: none;
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    #empty p { font-size: 1.1rem; }
+    #empty small { display: block; margin-top: 8px; font-size: .85rem; }
+
+    #loading {
+      text-align: center;
+      padding: 60px;
+      color: #888;
+    }
+
+    @media (max-width: 640px) {
+      .toolbar, .table-wrap, #stats { margin-left: 16px; margin-right: 16px; }
+      header { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Fortress HK — TV Price Tracker</h1>
+  <p>週次で収集した香港 Fortress の TV 価格データ</p>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="search" placeholder="商品名で絞り込み…">
+  <label>日付：
+    <select id="date-filter"><option value="">すべて</option></select>
+  </label>
+  <label>並び替え：
+    <select id="sort-select">
+      <option value="date-desc">日付（新しい順）</option>
+      <option value="date-asc">日付（古い順）</option>
+      <option value="price-asc">価格（安い順）</option>
+      <option value="price-desc">価格（高い順）</option>
+      <option value="name-asc">商品名 A→Z</option>
+    </select>
+  </label>
+</div>
+
+<p id="stats"></p>
+
+<div class="table-wrap">
+  <div id="loading">データを読み込み中…</div>
+  <div id="empty">
+    <p>該当する商品が見つかりません。</p>
+    <small>検索ワードや日付フィルターを変えてみてください。</small>
+  </div>
+  <table id="table" style="display:none">
+    <thead>
+      <tr>
+        <th data-col="date">収集日<span class="sort-icon"></span></th>
+        <th data-col="name">商品名<span class="sort-icon"></span></th>
+        <th data-col="price">現在価格<span class="sort-icon"></span></th>
+        <th data-col="was">元値<span class="sort-icon"></span></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+const CSV_PATH = "data/tv_prices.csv";
+let allRows = [];
+let sortCol = "date", sortDir = "desc";
+
+async function loadCSV() {
+  try {
+    const res = await fetch(CSV_PATH);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    return parseCSV(text);
+  } catch (e) {
+    document.getElementById("loading").innerHTML =
+      `<p style="color:#c00">⚠️ CSVの読み込みに失敗しました。<br>
+       <small>ローカルで開く場合は簡易HTTPサーバーを起動してください：<br>
+       <code>python3 -m http.server 8000</code></small></p>`;
+    return [];
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const cols = line.split(",").map(c => c.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = cols[i] ?? "");
+    return obj;
+  }).filter(r => r.product_name);
+}
+
+function populateDateFilter(rows) {
+  const dates = [...new Set(rows.map(r => r.date))].sort().reverse();
+  const sel = document.getElementById("date-filter");
+  dates.forEach(d => {
+    const opt = document.createElement("option");
+    opt.value = d; opt.textContent = d;
+    sel.appendChild(opt);
+  });
+}
+
+function getFiltered() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const d = document.getElementById("date-filter").value;
+  return allRows.filter(r =>
+    (!q || r.product_name.toLowerCase().includes(q)) &&
+    (!d || r.date === d)
+  );
+}
+
+function getSorted(rows) {
+  return [...rows].sort((a, b) => {
+    let va, vb;
+    if (sortCol === "date")  { va = a.date; vb = b.date; }
+    else if (sortCol === "price") { va = parseFloat(a.price_hkd)||0; vb = parseFloat(b.price_hkd)||0; }
+    else if (sortCol === "name")  { va = a.product_name; vb = b.product_name; }
+    else { va = a.date; vb = b.date; }
+    if (va < vb) return sortDir === "asc" ? -1 : 1;
+    if (va > vb) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+}
+
+function render() {
+  const filtered = getFiltered();
+  const sorted   = getSorted(filtered);
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  document.getElementById("stats").textContent =
+    `${sorted.length} 件表示 / 全 ${allRows.length} 件`;
+
+  if (!sorted.length) {
+    document.getElementById("table").style.display = "none";
+    document.getElementById("empty").style.display = "block";
+    return;
+  }
+  document.getElementById("table").style.display = "table";
+  document.getElementById("empty").style.display = "none";
+
+  sorted.forEach(r => {
+    const isSale = r.original_price_hkd && r.original_price_hkd !== r.price_hkd;
+    const saleBadge = isSale ? '<span class="badge-sale">SALE</span>' : "";
+    const nameCell = r.product_url
+      ? `<a href="${r.product_url}" target="_blank" rel="noopener">${esc(r.product_name)}</a>${saleBadge}`
+      : esc(r.product_name) + saleBadge;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="date">${esc(r.date)}</td>
+      <td class="name">${nameCell}</td>
+      <td class="price">${r.price_hkd ? "HK$" + fmt(r.price_hkd) : "—"}</td>
+      <td class="was">${isSale ? "HK$" + fmt(r.original_price_hkd) : ""}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function fmt(n) {
+  const num = parseFloat(n);
+  return isNaN(num) ? n : num.toLocaleString();
+}
+function esc(s) {
+  return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// Events
+document.getElementById("search").addEventListener("input", render);
+document.getElementById("date-filter").addEventListener("change", render);
+document.getElementById("sort-select").addEventListener("change", e => {
+  const [col, dir] = e.target.value.split("-");
+  sortCol = col; sortDir = dir;
+  render();
+});
+
+// Column-header sort
+document.querySelectorAll("thead th[data-col]").forEach(th => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortDir = sortDir === "asc" ? "desc" : "asc";
+    else { sortCol = col; sortDir = "asc"; }
+    document.querySelectorAll("thead th").forEach(t => t.classList.remove("asc","desc"));
+    th.classList.add(sortDir);
+    render();
+  });
+});
+
+// Boot
+(async () => {
+  allRows = await loadCSV();
+  if (!allRows.length) return;
+  document.getElementById("loading").style.display = "none";
+  populateDateFilter(allRows);
+  render();
+})();
+</script>
+</body>
+</html>
