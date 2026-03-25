@@ -308,8 +308,8 @@ document.querySelectorAll("thead th[data-col]").forEach(th => {
 // Boot
 (async () => {
   allRows = await loadCSV();
-  if (!allRows.length) return;
   document.getElementById("loading").style.display = "none";
+  if (!allRows.length) { render(); return; }
   populateDateFilter(allRows);
   render();
 })();
